@@ -17,4 +17,4 @@ RUN cd /work/robot-openeuler-ci-tools && pip3 install -r requirements.txt
 ENV LANG=en_US.UTF-8 \
     PYTHONPATH=/work/ci_tools/advisors
 
-ENTRYPOINT ["uwsgi", "--ini", "/work/ci_tools/deploy/production/uwsgi.ini"]
+ENTRYPOINT ["uwsgi", "--ini", "/work/robot-openeuler-ci-tools/deploy/production/uwsgi.ini"]
