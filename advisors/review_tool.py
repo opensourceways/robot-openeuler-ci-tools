@@ -359,10 +359,16 @@ def check_branch_add(info):
     """
     review_body = ""
     need_mgmt_lgtm = False
-
+    current_branch = get_current_branch()
+    fetch_branch = current_branch.split('_', 1)[1]
+    subprocess.call('git checkout {}'.format(fetch_branch), shell=True)
     pr_diffs = [diff_file.splitlines() for diff_file in subprocess.getoutput('git show').split('diff --git')[1:]]
+    subprocess.call('git checkout {}'.format(current_branch), shell=True)
     for diff_file in pr_diffs:
-        diff_file_name = diff_file[0].split(' ')[-1].split('/', 1)[1]
+        try:
+            diff_file_name = diff_file[0].split(' ')[-1].split('/', 1)[1]
+        except IndexError:
+            diff_file_name = ''
         if not (diff_file_name.endswith('.yaml') and
                 len(diff_file_name.split('/')) == 5 and
                 diff_file_name.split('/')[0] == 'sig' and
