@@ -285,20 +285,27 @@ def get_repo_changes():
     dlt_repos = []
     add_repos = []
     repo_changes = {}
-    cur_repos = []
-    tobe_repos = []
-    cur_sigs, cur_openeuler_repos, cur_src_openeuler_repos = load_sigs()
-    tobe_sigs, tobe_openeuler_repos, tobe_src_openeuler_repos = load_sigs('master')
-    cur_repos.extend(cur_openeuler_repos)
-    cur_repos.extend(cur_src_openeuler_repos)
-    tobe_repos.extend(tobe_openeuler_repos)
-    tobe_repos.extend(tobe_src_openeuler_repos)
-    for cur_repo in cur_repos:
-        if cur_repo not in tobe_repos:
-            add_repos.append(cur_repo)
-    for tobe_repo in tobe_repos:
-        if tobe_repo not in cur_repos:
-            dlt_repos.append(tobe_repo)
+    dlt_sigs = []
+    add_sigs = []
+    cur_sigs, _, _ = load_sigs('master')
+    tobe_sigs, _, _ = load_sigs()
+    tmpdir = tempfile.gettempdir()
+    tmp_cur_sigs = os.path.join(tmpdir, 'cur_sigs.yaml')
+    tmp_tobe_sigs = os.path.join(tmpdir, 'tobe_sigs.yaml')
+    with open(tmp_cur_sigs, 'w') as f:
+        yaml.dump(cur_sigs, f, default_flow_style=False)
+    with open(tmp_tobe_sigs, 'w') as f:
+        yaml.dump(tobe_sigs, f, default_flow_style=False)
+    output = subprocess.getoutput('diff {} {}'.format(tmp_cur_sigs, tmp_tobe_sigs))
+    for line in output.splitlines():
+        if line.startswith('<'):
+            dlt_content = line.strip().split(' ')[-1]
+            if dlt_content.startswith('src-openeuler') or dlt_content.startswith('openeuler'):
+                dlt_repos.append(dlt_content)
+        elif line.startswith('>'):
+            add_content = line.strip().split(' ')[-1]
+            if add_content.startswith('src-openeuler') or add_content.startswith('openeuler'):
+                add_repos.append(add_content)
     for dlt_repo in dlt_repos:
         if dlt_repo in add_repos:
             cur_sig = get_repo_sig_ownership(dlt_repo, cur_sigs)
