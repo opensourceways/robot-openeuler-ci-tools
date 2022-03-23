@@ -19,6 +19,7 @@ import sys
 import argparse
 import subprocess
 import shutil
+import tempfile
 import urllib
 import yaml
 
