@@ -16,6 +16,11 @@ basic:
     claim: PR和实际代码修改和内容描述一致
     explain: 提交的说明文字应该和实际代码修改内容保持一致。
   -
+    name: PR-ci-access-control-check
+    condition: null
+    claim: PR符合CI门禁检查要求
+    explain: PR提交内容符合CI门禁的检查。
+  -
     name: PR-standard-check
     condition: null
     claim: PR符合gitee的规范检查要求
