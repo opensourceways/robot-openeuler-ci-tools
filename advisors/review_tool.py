@@ -266,17 +266,28 @@ def load_sig_owners(sig_name):
     """
     owners = []
     owners_file = "sig/{}/OWNERS".format(sig_name)
+    sig_info_file = "sig/{}/sig-info.yaml".format(sig_name)
+    if os.path.exists(owners_file):
+        try:
+            with open(owners_file, 'r') as file_descriptor:
+                lines = file_descriptor.readlines()
+                for line in lines:
+                    if line.strip().startswith('-'):
+                        owner = line.replace('- ', '@').strip()
+                        owners.append(owner)
+        except IOError as error:
+            print("Error: 没有找到文件或读取文件失败 {}.", owners_file, error)
+            return None
+        return owners
     try:
-        with open(owners_file, 'r') as file_descriptor:
-            lines = file_descriptor.readlines()
-            for line in lines:
-                if line.strip().startswith('-'):
-                    owner = line.replace('- ', '@').strip()
-                    owners.append(owner)
+        with open(sig_info_file, 'r') as f:
+            sig_info = yaml.load(f.read(), Loader=yaml.Loader)
+        maintainers = sig_info['maintainers']
+        owners = [('@' + maintainer['gitee_id']) for maintainer in maintainers]
+        return owners
     except IOError as error:
-        print("Error: 没有找到文件或读取文件失败 {}.", owners_file, error)
+        print("Error: 没有找到文件或读取文件失败 {}.", sig_info_file, error)
         return None
-    return owners
 
 
 def get_repo_changes():
