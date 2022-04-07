@@ -63,6 +63,14 @@ PR_CONFLICT_COMMENT = "Conflict exists in PR.Please resolve conflict before revi
 FAILURE_COMMENT = """
 Failed to create review list.You can try to rebuild using "/review retrigger".:confused:"""
 
+BLACK_LIST_CHECK_URL = """https://gitee.com/openeuler/community/blob/
+                          master/zh/technical-committee/governance/blacklist-software.yaml"""
+
+
+class CheckCmd(object):
+    """Use the git command to check the merge"""
+    check_git_diff_cmd = "git diff --name-status remotes/origin/master.."
+
 
 def check_new_code(branch):
     """
@@ -166,6 +174,94 @@ def check_repository_changes():
             if len(diff_file.split('/')) == 5 and diff_file.split('/')[2] in ['openeuler', 'src-openeuler']:
                 lst_files.append(diff_file)
     return bool(lst_files)
+
+
+def execute_cmd(cmd):
+    """
+    Execute commands through subprocess
+    :param cmd: string, the cmd
+    :return: string, the result of execute cmd
+    """
+    return subprocess.getoutput(cmd)
+
+
+def parse_repo_blacklist_change(repo_changes):
+    """
+    Parses the results
+    :param repo_changes: string, the repo change content
+    :return: bool, True if src-openeuler is deleted or move to recycle else False
+    """
+    delete_set, add_to_not_recycle_set, add_to_recycle_set = set(), set(), set()
+    for line in repo_changes.splitlines():
+        status, item = line.split(maxsplit=1)
+        is_yaml_file = item.startswith("sig/") and item.endswith(".yaml")
+        if not is_yaml_file:
+            continue
+        elif status == "D":
+            yaml_name_list = item.rsplit('/', 1)
+            if len(yaml_name_list) > 1:
+                delete_set.add(yaml_name_list[1])
+        elif status == "A":
+            yaml_name_list = item.split('/')
+            if len(yaml_name_list) > 1:
+                if yaml_name_list[1] == "sig-recycle":
+                    add_to_recycle_set.add(yaml_name_list[-1])
+                else:
+                    add_to_not_recycle_set.add(yaml_name_list[-1])
+    # todo 测试出还有一种情况：先删除，再修改，再添加
+    return bool(delete_set - add_to_not_recycle_set) or bool(add_to_recycle_set)
+
+
+def parse_sig_info_change(sig_info_change):
+    """
+    Parses the results
+    :param sig_info_change: string, the sig info change content
+    :return: bool, True if change else False
+    """
+    is_sig_info_changes = False
+    for line in sig_info_change.splitlines():
+        status, item = line.split(maxsplit=1)
+        is_yaml_file = item.startswith("sig/") and item.endswith("sig-info.yaml")
+        if status in ["M", "A"] and is_yaml_file:
+            is_sig_info_changes = True
+            break
+    return is_sig_info_changes
+
+
+def check_repo_blacklist_change():
+    """
+    Check src-openeuler.yaml has been deleted or move to sig-recycle
+    :return: bool, True if src-openeuler is deleted or move to recycle else False
+    """
+    result = execute_cmd(CheckCmd.check_git_diff_cmd)
+    return parse_repo_blacklist_change(result)
+
+
+def check_sig_info_change():
+    """
+    Check sig-info.yaml has been added or modified
+    :return: boo, True if change else False
+    """
+    result = execute_cmd(CheckCmd.check_git_diff_cmd)
+    return parse_sig_info_change(result)
+
+
+def add_sig_info_review_body(review_body, sigs, cstm_item):
+    """
+    Iterate through SIGS and return review Body
+    :param review_body: string, the output content
+    :param sigs: dict {"A-Tune": "@Tom @Kavin"}
+    :param cstm_item: the reviewer_checklist
+    :return: string, the new review body
+    """
+    if not isinstance(sigs, dict):
+        return None
+    for sig_name, sig_maintainers in sigs.items():
+        full_claim = cstm_item['claim'].format(sig=sig_name)
+        full_explain = cstm_item['explain'].format(maintainers=sig_maintainers)
+        item = join_check_item(categorizer['customization'], full_claim, full_explain)
+        review_body = "{}{}".format(review_body, item)
+    return review_body
 
 
 def get_current_branch():
@@ -560,9 +656,13 @@ def community_review(custom_items):
     generate repository 'community' review body
     """
     review_body = ""
+    #  sigs: { "sig_info": "@infra"}
+    #  info_sigs:
     sigs = check_maintainer_changes()
     info_sigs = check_sig_information_changes()
     repo_change = check_repository_changes()
+    is_repo_blacklist_change = check_repo_blacklist_change()
+    is_sig_info_check_change = check_sig_info_change()
     for cstm_item in custom_items:
         if cstm_item['condition'] == "maintainer-change":
             if not sigs:
@@ -590,6 +690,18 @@ def community_review(custom_items):
             review_body += check_repository_ownership_changes(cstm_item)
         elif cstm_item['condition'] == 'new-branch-add':
             review_body += check_branch_add(cstm_item)
+        elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "repo-blacklist-change":
+            if not is_repo_blacklist_change:
+                continue
+            full_explain = cstm_item['explain'].format(black_list_url=BLACK_LIST_CHECK_URL)
+            item = join_check_item(categorizer['customization'], cstm_item['claim'], full_explain)
+            review_body = "{}{}".format(review_body, item)
+        elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "sig-info-change":
+            if not is_sig_info_check_change:
+                continue
+            new_review_body = add_sig_info_review_body(review_body, sigs, cstm_item)
+            if new_review_body:
+                review_body = new_review_body
     return review_body
 
 
