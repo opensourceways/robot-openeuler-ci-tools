@@ -63,9 +63,6 @@ PR_CONFLICT_COMMENT = "Conflict exists in PR.Please resolve conflict before revi
 FAILURE_COMMENT = """
 Failed to create review list.You can try to rebuild using "/review retrigger".:confused:"""
 
-BLACK_LIST_CHECK_URL = """https://gitee.com/openeuler/community/blob/
-                          master/zh/technical-committee/governance/blacklist-software.yaml"""
-
 
 class CheckCmd(object):
     """Use the git command to check the merge"""
@@ -198,17 +195,16 @@ def parse_repo_blacklist_change(repo_changes):
         if not is_yaml_file:
             continue
         elif status == "D":
-            yaml_name_list = item.rsplit('/', 1)
-            if len(yaml_name_list) > 1:
-                delete_set.add(yaml_name_list[1])
+            yaml_name_list = item.split('/')
+            if len(yaml_name_list) > 2 and yaml_name_list[2] == "src-openeuler":
+                delete_set.add(yaml_name_list[-1])
         elif status == "A":
             yaml_name_list = item.split('/')
-            if len(yaml_name_list) > 1:
+            if len(yaml_name_list) > 2 and yaml_name_list[2] == "src-openeuler":
                 if yaml_name_list[1] == "sig-recycle":
                     add_to_recycle_set.add(yaml_name_list[-1])
                 else:
                     add_to_not_recycle_set.add(yaml_name_list[-1])
-    # todo 测试出还有一种情况：先删除，再修改，再添加
     return bool(delete_set - add_to_not_recycle_set) or bool(add_to_recycle_set)
 
 
@@ -656,8 +652,6 @@ def community_review(custom_items):
     generate repository 'community' review body
     """
     review_body = ""
-    #  sigs: { "sig_info": "@infra"}
-    #  info_sigs:
     sigs = check_maintainer_changes()
     info_sigs = check_sig_information_changes()
     repo_change = check_repository_changes()
@@ -693,8 +687,7 @@ def community_review(custom_items):
         elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "repo-blacklist-change":
             if not is_repo_blacklist_change:
                 continue
-            full_explain = cstm_item['explain'].format(black_list_url=BLACK_LIST_CHECK_URL)
-            item = join_check_item(categorizer['customization'], cstm_item['claim'], full_explain)
+            item = join_check_item(categorizer['customization'], cstm_item['claim'], cstm_item['explain'])
             review_body = "{}{}".format(review_body, item)
         elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "sig-info-change":
             if not is_sig_info_check_change:
