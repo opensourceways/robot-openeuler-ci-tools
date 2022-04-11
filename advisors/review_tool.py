@@ -67,6 +67,7 @@ Failed to create review list.You can try to rebuild using "/review retrigger".:c
 class CheckCmd(object):
     """Use the git command to check the merge"""
     check_git_diff_cmd = "git diff --name-status remotes/origin/master.."
+    check_remote_cmd = "git show remotes/origin/master:{}"
 
 
 def check_new_code(branch):
@@ -182,6 +183,42 @@ def execute_cmd(cmd):
     return subprocess.getoutput(cmd)
 
 
+def load_yaml(content):
+    """
+    load content to yaml obj
+    :param content: str
+    :return: yaml obj
+    """
+    return yaml.load(content, Loader=yaml.Loader)
+
+
+def get_maintainers_list(sig_info_list):
+    """
+    First get maintainers from owners, secondly from sig-info.yaml
+    :param sig_info_list: list, ['sig', 'Marketing', 'sig-info.yaml']
+    :return: list, ["@Tom", "@Chao"]
+    """
+    owners_list = list()
+    owners_path = sig_info_list[0:2]
+    owners_path.append("OWNERS")
+    owners_info = execute_cmd(CheckCmd.check_remote_cmd.format("/".join(owners_path)))
+    if not owners_info.startswith(r"fatal:"):
+        for f_line in owners_info.splitlines():
+            if f_line.strip().startswith("-"):
+                owner = f_line.replace("- ", "@").strip()
+                owners_list.append(owner)
+    else:
+        sig_info_path = sig_info_list[0:2]
+        sig_info_path.append("sig-info.yaml")
+        sig_info = execute_cmd(CheckCmd.check_remote_cmd.format("/".join(sig_info_path)))
+        if not sig_info.startswith(r"fatal:"):
+            sig_info_obj = load_yaml(sig_info)
+            if sig_info_obj.get("maintainers") is not None and isinstance(sig_info_obj["maintainers"], list):
+                owners_list = ["{}{}".format("@", owner_info['name']) for owner_info in sig_info_obj["maintainers"]
+                               if owner_info.get('name') is not None]
+    return owners_list
+
+
 def parse_repo_blacklist_change(repo_changes):
     """
     Parses the results
@@ -212,16 +249,20 @@ def parse_sig_info_change(sig_info_change):
     """
     Parses the results
     :param sig_info_change: string, the sig info change content
-    :return: bool, True if change else False
+    :return: dict, {"A-Tune": "@Randy.Wang",}
     """
-    is_sig_info_changes = False
+    sig_info_changes_dict = dict()
     for line in sig_info_change.splitlines():
         status, item = line.split(maxsplit=1)
         is_yaml_file = item.startswith("sig/") and item.endswith("sig-info.yaml")
         if status in ["M", "A"] and is_yaml_file:
-            is_sig_info_changes = True
-            break
-    return is_sig_info_changes
+            sig_info_list = item.split("/")
+            if len(sig_info_list) >= 2:
+                sig_name = sig_info_list[1]
+                owners_list = get_maintainers_list(sig_info_list)
+                if owners_list:
+                    sig_info_changes_dict[sig_name] = " ".join(owners_list)
+    return sig_info_changes_dict
 
 
 def check_repo_blacklist_change():
@@ -236,23 +277,23 @@ def check_repo_blacklist_change():
 def check_sig_info_change():
     """
     Check sig-info.yaml has been added or modified
-    :return: boo, True if change else False
+    :return: dict, {"A-Tune": "@Randy.Wang",}
     """
     result = execute_cmd(CheckCmd.check_git_diff_cmd)
     return parse_sig_info_change(result)
 
 
-def add_sig_info_review_body(review_body, sigs, cstm_item):
+def add_sig_info_review_body(review_body, sig_info_change_dict, cstm_item):
     """
     Iterate through SIGS and return review Body
-    :param review_body: string, the output content
-    :param sigs: dict {"A-Tune": "@Tom @Kavin"}
+    :param review_body: string, the output comment
+    :param sig_info_change_dict: dict, eg: {"A-Tune": "@Tom @Kavin"}
     :param cstm_item: the reviewer_checklist
     :return: string, the new review body
     """
-    if not isinstance(sigs, dict):
+    if not isinstance(sig_info_change_dict, dict):
         return None
-    for sig_name, sig_maintainers in sigs.items():
+    for sig_name, sig_maintainers in sig_info_change_dict.items():
         full_claim = cstm_item['claim'].format(sig=sig_name)
         full_explain = cstm_item['explain'].format(maintainers=sig_maintainers)
         item = join_check_item(categorizer['customization'], full_claim, full_explain)
@@ -656,7 +697,7 @@ def community_review(custom_items):
     info_sigs = check_sig_information_changes()
     repo_change = check_repository_changes()
     is_repo_blacklist_change = check_repo_blacklist_change()
-    is_sig_info_check_change = check_sig_info_change()
+    sig_info_change_dict = check_sig_info_change()
     for cstm_item in custom_items:
         if cstm_item['condition'] == "maintainer-change":
             if not sigs:
@@ -690,9 +731,9 @@ def community_review(custom_items):
             item = join_check_item(categorizer['customization'], cstm_item['claim'], cstm_item['explain'])
             review_body = "{}{}".format(review_body, item)
         elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "sig-info-change":
-            if not is_sig_info_check_change:
+            if not sig_info_change_dict:
                 continue
-            new_review_body = add_sig_info_review_body(review_body, sigs, cstm_item)
+            new_review_body = add_sig_info_review_body(review_body, sig_info_change_dict, cstm_item)
             if new_review_body:
                 review_body = new_review_body
     return review_body
