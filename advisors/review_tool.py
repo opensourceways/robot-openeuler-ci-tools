@@ -64,6 +64,12 @@ FAILURE_COMMENT = """
 Failed to create review list.You can try to rebuild using "/review retrigger".:confused:"""
 
 
+class CheckCmd(object):
+    """Use the git command to check the merge"""
+    check_git_diff_cmd = "git diff --name-status remotes/origin/master.."
+    check_remote_cmd = "git show remotes/origin/master:{}"
+
+
 def check_new_code(branch):
     """
     Check if new code file has been introduced
@@ -166,6 +172,133 @@ def check_repository_changes():
             if len(diff_file.split('/')) == 5 and diff_file.split('/')[2] in ['openeuler', 'src-openeuler']:
                 lst_files.append(diff_file)
     return bool(lst_files)
+
+
+def execute_cmd(cmd):
+    """
+    Execute commands through subprocess
+    :param cmd: string, the cmd
+    :return: string, the result of execute cmd
+    """
+    return subprocess.getoutput(cmd)
+
+
+def load_yaml(content):
+    """
+    load content to yaml obj
+    :param content: str
+    :return: yaml obj
+    """
+    return yaml.load(content, Loader=yaml.Loader)
+
+
+def get_maintainers_list(sig_info_list):
+    """
+    First get maintainers from owners, secondly from sig-info.yaml
+    :param sig_info_list: list, ['sig', 'Marketing', 'sig-info.yaml']
+    :return: list, ["@Tom", "@Chao"]
+    """
+    owners_list = list()
+    owners_path = sig_info_list[0:2]
+    owners_path.append("OWNERS")
+    owners_info = execute_cmd(CheckCmd.check_remote_cmd.format("/".join(owners_path)))
+    if not owners_info.startswith(r"fatal:"):
+        for f_line in owners_info.splitlines():
+            if f_line.strip().startswith("-"):
+                owner = f_line.replace("- ", "@").strip()
+                owners_list.append(owner)
+    else:
+        sig_info_path = sig_info_list[0:2]
+        sig_info_path.append("sig-info.yaml")
+        sig_info = execute_cmd(CheckCmd.check_remote_cmd.format("/".join(sig_info_path)))
+        if not sig_info.startswith(r"fatal:"):
+            sig_info_obj = load_yaml(sig_info)
+            if sig_info_obj.get("maintainers") is not None and isinstance(sig_info_obj["maintainers"], list):
+                owners_list = ["{}{}".format("@", owner_info['name']) for owner_info in sig_info_obj["maintainers"]
+                               if owner_info.get('name') is not None]
+    return owners_list
+
+
+def parse_repo_blacklist_change(repo_changes):
+    """
+    Parses the results
+    :param repo_changes: string, the repo change content
+    :return: bool, True if src-openeuler is deleted or move to recycle else False
+    """
+    delete_set, add_to_not_recycle_set, add_to_recycle_set = set(), set(), set()
+    for line in repo_changes.splitlines():
+        status, item = line.split(maxsplit=1)
+        is_yaml_file = item.startswith("sig/") and item.endswith(".yaml")
+        if not is_yaml_file:
+            continue
+        elif status == "D":
+            yaml_name_list = item.split('/')
+            if len(yaml_name_list) > 2 and yaml_name_list[2] == "src-openeuler":
+                delete_set.add(yaml_name_list[-1])
+        elif status == "A":
+            yaml_name_list = item.split('/')
+            if len(yaml_name_list) > 2 and yaml_name_list[2] == "src-openeuler":
+                if yaml_name_list[1] == "sig-recycle":
+                    add_to_recycle_set.add(yaml_name_list[-1])
+                else:
+                    add_to_not_recycle_set.add(yaml_name_list[-1])
+    return bool(delete_set - add_to_not_recycle_set) or bool(add_to_recycle_set)
+
+
+def parse_sig_info_change(sig_info_change):
+    """
+    Parses the results
+    :param sig_info_change: string, the sig info change content
+    :return: dict, {"A-Tune": "@Randy.Wang",}
+    """
+    sig_info_changes_dict = dict()
+    for line in sig_info_change.splitlines():
+        status, item = line.split(maxsplit=1)
+        is_yaml_file = item.startswith("sig/") and item.endswith("sig-info.yaml")
+        if status in ["M", "A"] and is_yaml_file:
+            sig_info_list = item.split("/")
+            if len(sig_info_list) >= 2:
+                sig_name = sig_info_list[1]
+                owners_list = get_maintainers_list(sig_info_list)
+                if owners_list:
+                    sig_info_changes_dict[sig_name] = " ".join(owners_list)
+    return sig_info_changes_dict
+
+
+def check_repo_blacklist_change():
+    """
+    Check src-openeuler.yaml has been deleted or move to sig-recycle
+    :return: bool, True if src-openeuler is deleted or move to recycle else False
+    """
+    result = execute_cmd(CheckCmd.check_git_diff_cmd)
+    return parse_repo_blacklist_change(result)
+
+
+def check_sig_info_change():
+    """
+    Check sig-info.yaml has been added or modified
+    :return: dict, {"A-Tune": "@Randy.Wang",}
+    """
+    result = execute_cmd(CheckCmd.check_git_diff_cmd)
+    return parse_sig_info_change(result)
+
+
+def add_sig_info_review_body(review_body, sig_info_change_dict, cstm_item):
+    """
+    Iterate through SIGS and return review Body
+    :param review_body: string, the output comment
+    :param sig_info_change_dict: dict, eg: {"A-Tune": "@Tom @Kavin"}
+    :param cstm_item: the reviewer_checklist
+    :return: string, the new review body
+    """
+    if not isinstance(sig_info_change_dict, dict):
+        return None
+    for sig_name, sig_maintainers in sig_info_change_dict.items():
+        full_claim = cstm_item['claim'].format(sig=sig_name)
+        full_explain = cstm_item['explain'].format(maintainers=sig_maintainers)
+        item = join_check_item(categorizer['customization'], full_claim, full_explain)
+        review_body = "{}{}".format(review_body, item)
+    return review_body
 
 
 def get_current_branch():
@@ -586,6 +719,8 @@ def community_review(custom_items):
     sigs = check_maintainer_changes()
     info_sigs = check_sig_information_changes()
     repo_change = check_repository_changes()
+    is_repo_blacklist_change = check_repo_blacklist_change()
+    sig_info_change_dict = check_sig_info_change()
     for cstm_item in custom_items:
         if cstm_item['condition'] == "maintainer-change":
             if not sigs:
@@ -613,6 +748,17 @@ def community_review(custom_items):
             review_body += check_repository_ownership_changes(cstm_item)
         elif cstm_item['condition'] == 'new-branch-add':
             review_body += check_branch_add(cstm_item)
+        elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "repo-blacklist-change":
+            if not is_repo_blacklist_change:
+                continue
+            item = join_check_item(categorizer['customization'], cstm_item['claim'], cstm_item['explain'])
+            review_body = "{}{}".format(review_body, item)
+        elif isinstance(cstm_item['condition'], str) and cstm_item['condition'].strip() == "sig-info-change":
+            if not sig_info_change_dict:
+                continue
+            new_review_body = add_sig_info_review_body(review_body, sig_info_change_dict, cstm_item)
+            if new_review_body:
+                review_body = new_review_body
     return review_body
 
 

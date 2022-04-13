@@ -187,3 +187,13 @@ customization:
     condition: new-branch-add
     claim: "代码仓增加非 master 分支，要得到Release Management团队同意"
     explain: "代码仓的非master分支会被发布版本构建使用，因此需要 {owners} 中至少一人在PR的review中留下 \"/lgtm\" 表示确认。"
+  -
+    name: repo-blacklist-check
+    condition: repo-blacklist-change
+    claim: "软件包Blacklist确认"
+    explain: "制品仓被删除或移到sig-recycle，需要完成Blacklist([Blacklist-software](https://gitee.com/openeuler/community/blob/master/zh/technical-committee/governance/blacklist-software.yaml))确认。"
+
+  - name: sig-info-check
+    condition: sig-info-change
+    claim: "增加/修改sig-info.yaml，要得到{sig}的维护者同意"
+    explain: "需要 {maintainers} 中至少一人代表在此 PR 的 review 中留下 \"/lgtm\" 表示确认同意增加/修改sig-info.yaml。"
