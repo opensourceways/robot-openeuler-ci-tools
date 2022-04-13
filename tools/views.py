@@ -11,12 +11,12 @@ logger = logging.getLogger('log')
 
 def review(url):
     logger.info('Starting to review Pull Request')
-    subprocess.call('python3 advisors/review_tool.py -u {} -c'.format(url), shell=True)
+    subprocess.call('python3 advisors/review_tool.py -u {} -c -l'.format(url), shell=True)
 
 
 def edit_review(url, content):
     logger.info('Starting to edit review status')
-    subprocess.call('python3 advisors/review_tool.py -u {} -e {}'.format(url, content), shell=True)
+    subprocess.call('python3 advisors/review_tool.py -u {} -e {} -l'.format(url, content), shell=True)
 
 
 def base_log(pr_url, hook_name, action):
