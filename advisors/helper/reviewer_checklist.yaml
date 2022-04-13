@@ -190,8 +190,8 @@ customization:
   -
     name: repo-blacklist-check
     condition: repo-blacklist-change
-    claim: "制品仓被删除或移到sig-recycle，需要完成blacklist确认"
-    explain: "制品仓被删除或移到sig-recycle，需要完成blacklist([blacklist-software](https://gitee.com/openeuler/community/blob/master/zh/technical-committee/governance/blacklist-software.yaml))确认。"
+    claim: "软件包Blacklist确认"
+    explain: "制品仓被删除或移到sig-recycle，需要完成Blacklist([Blacklist-software](https://gitee.com/openeuler/community/blob/master/zh/technical-committee/governance/blacklist-software.yaml))确认。"
 
   - name: sig-info-check
     condition: sig-info-change
