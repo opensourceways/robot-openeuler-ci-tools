@@ -214,8 +214,8 @@ def get_maintainers_list(sig_info_list):
         if not sig_info.startswith(r"fatal:"):
             sig_info_obj = load_yaml(sig_info)
             if sig_info_obj.get("maintainers") is not None and isinstance(sig_info_obj["maintainers"], list):
-                owners_list = ["{}{}".format("@", owner_info['name']) for owner_info in sig_info_obj["maintainers"]
-                               if owner_info.get('name') is not None]
+                owners_list = ["{}{}".format("@", owner_info['gitee_id']) for owner_info in sig_info_obj["maintainers"]
+                               if owner_info.get('gitee_id') is not None]
     return owners_list
 
 
