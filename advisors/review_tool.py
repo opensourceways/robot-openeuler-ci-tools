@@ -228,6 +228,13 @@ def parse_repo_blacklist_change(repo_changes):
     delete_set, add_to_not_recycle_set, add_to_recycle_set = set(), set(), set()
     for line in repo_changes.splitlines():
         status, item = line.split(maxsplit=1)
+        if status == "R100":
+            rename_list = item.split(maxsplit=1)
+            if len(rename_list) == 2:
+                yaml_name_list = rename_list[-1].split('/')
+                if len(yaml_name_list) > 2 and yaml_name_list[0].strip() == "sig" \
+                        and yaml_name_list[1].strip() == "sig-recycle" and yaml_name_list[2].strip() == "src-openeuler":
+                    return True
         is_yaml_file = item.startswith("sig/") and item.endswith(".yaml")
         if not is_yaml_file:
             continue
