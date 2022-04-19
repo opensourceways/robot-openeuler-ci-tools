@@ -407,6 +407,8 @@ def load_sig_owners(sig_name):
     owners = []
     owners_file = "sig/{}/OWNERS".format(sig_name)
     sig_info_file = "sig/{}/sig-info.yaml".format(sig_name)
+    current_branch = get_current_branch()
+    subprocess.call('git checkout master', shell=True)
     if os.path.exists(owners_file):
         try:
             with open(owners_file, 'r') as file_descriptor:
@@ -416,18 +418,39 @@ def load_sig_owners(sig_name):
                         owner = line.replace('- ', '@').strip()
                         owners.append(owner)
         except IOError as error:
-            print("Error: 没有找到文件或读取文件失败 {}.", owners_file, error)
+            print("Error: 没有在master分支找到文件或读取文件失败 {}.", owners_file, error)
+            subprocess.call('git checkout {}'.format(current_branch), shell=True)
             return None
+        subprocess.call('git checkout {}'.format(current_branch), shell=True)
         return owners
     try:
         with open(sig_info_file, 'r') as f:
             sig_info = yaml.load(f.read(), Loader=yaml.Loader)
         maintainers = sig_info['maintainers']
         owners = [('@' + maintainer['gitee_id']) for maintainer in maintainers]
+        subprocess.call('git checkout {}'.format(current_branch), shell=True)
         return owners
-    except IOError as error:
-        print("Error: 没有找到文件或读取文件失败 {}.", sig_info_file, error)
-        return None
+    except FileNotFoundError:
+        if os.path.exists(owners_file):
+            try:
+                with open(owners_file, 'r') as file_descriptor:
+                    lines = file_descriptor.readlines()
+                    for line in lines:
+                        if line.strip().startswith('-'):
+                            owner = line.replace('- ', '@').strip()
+                            owners.append(owner)
+            except IOError as error:
+                print("Error: 没有找到文件或读取文件失败 {}.", owners_file, error)
+                return None
+        try:
+            with open(sig_info_file, 'r') as f:
+                sig_info = yaml.load(f.read(), Loader=yaml.Loader)
+            maintainers = sig_info['maintainers']
+            owners = [('@' + maintainer['gitee_id']) for maintainer in maintainers]
+            return owners
+        except IOError as error:
+            print("Error: 没有找到文件或读取文件失败 {}.", owners_file, error)
+            return None
 
 
 def get_repo_changes():
