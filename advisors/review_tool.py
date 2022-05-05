@@ -316,7 +316,7 @@ def load_sigs(branch=None):
     src_openeuler_repos = []
     sigs = []
     for i in os.listdir('sig'):
-        if i in ['README.md', 'sig-template']:
+        if i in ['README.md', 'sig-template', 'create_sig_info_template.py']:
             continue
         if i not in [x['name'] for x in sigs]:
             sigs.append({'name': i, 'repositories': []})
