@@ -301,6 +301,8 @@ def add_sig_info_review_body(review_body, sig_info_change_dict, cstm_item):
     if not isinstance(sig_info_change_dict, dict):
         return None
     for sig_name, sig_maintainers in sig_info_change_dict.items():
+        if sig_name == "sig-template":
+            continue
         full_claim = cstm_item['claim'].format(sig=sig_name)
         full_explain = cstm_item['explain'].format(maintainers=sig_maintainers)
         item = join_check_item(categorizer['customization'], full_claim, full_explain)
@@ -761,6 +763,8 @@ def community_review(custom_items):
                 continue
             for sig in info_sigs:
                 if sig in sigs:
+                    continue
+                if sig == "sig-template":
                     continue
                 item = join_check_item(categorizer['customization'],
                                        cstm_item['claim'], cstm_item['explain'])
