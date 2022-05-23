@@ -677,7 +677,7 @@ def check_sig_information_changes():
                 remote_maintainers = yaml.load(remote_owners, Loader=yaml.Loader)['maintainers']
             else:
                 remote_sig_info = subprocess.getoutput(
-                    'git show remotes/origin/master: {}'.format(remote_sig_info_file))
+                    'git show remotes/origin/master:{}'.format(remote_sig_info_file))
                 remote_maintainers = [maintainer['gitee_id'] for maintainer in
                                       yaml.load(remote_sig_info, Loader=yaml.Loader)['maintainers']]
             for maintainer in remote_maintainers:
