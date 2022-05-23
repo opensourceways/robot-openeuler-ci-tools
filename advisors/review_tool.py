@@ -203,10 +203,7 @@ def get_maintainers_list(sig_info_list):
     owners_path.append("OWNERS")
     owners_info = execute_cmd(CheckCmd.check_remote_cmd.format("/".join(owners_path)))
     if not owners_info.startswith(r"fatal:"):
-        for f_line in owners_info.splitlines():
-            if f_line.strip().startswith("-"):
-                owner = f_line.replace("- ", "@").strip()
-                owners_list.append(owner)
+        owners_list = [('@' + maintainer) for maintainer in yaml.load(owners_info, Loader=yaml.Loader)['maintainers']]
     else:
         sig_info_path = sig_info_list[0:2]
         sig_info_path.append("sig-info.yaml")
@@ -641,11 +638,16 @@ def check_maintainer_changes():
                                                      item.replace('sig-info.yaml', 'OWNERS'))
                 remote_maintainers = yaml.load(remote_owners, Loader=yaml.Loader)['maintainers']
             else:
-                remote_maintainers = yaml.load(remote_sig_info, Loader=yaml.Loader)['maintainers']
-                if remote_maintainers:
-                    remote_maintainers = [maintainer['gitee_id'] for maintainer in remote_maintainers]
-                else:
-                    remote_maintainers = []
+                try:
+                    remote_maintainers = yaml.load(remote_sig_info, Loader=yaml.Loader)['maintainers']
+                    if remote_maintainers:
+                        remote_maintainers = [maintainer['gitee_id'] for maintainer in remote_maintainers]
+                    else:
+                        remote_maintainers = []
+                except KeyError:
+                    remote_owners = subprocess.getoutput(
+                        'git show remotes/origin/master:' + item.replace('sig-info.yaml', 'OWNERS'))
+                    remote_maintainers = yaml.load(remote_owners, Loader=yaml.Loader)['maintainers']
             if sorted(current_maintainers) != sorted(remote_maintainers):
                 owners = ['@' + maintainer for maintainer in remote_maintainers]
                 sigs[sig] = " ".join(owners)
@@ -667,14 +669,19 @@ def check_sig_information_changes():
         if item.startswith("sig/") and not item.endswith("/OWNERS"):
             sig = item.split("/")[1]
             owners = []
-            owner_fn = item.split("/")[:2]
-            owner_fn.append("OWNERS")
-            cmd_line = "git show remotes/origin/master:" + "/".join(owner_fn)
-            owner_file = subprocess.getoutput(cmd_line)
-            for f_line in owner_file.splitlines():
-                if f_line.strip().startswith("-"):
-                    owner = f_line.replace("- ", "@").strip()
-                    owners.append(owner)
+            remote_owners_file = os.path.join('sig', sig, 'OWNERS')
+            remote_sig_info_file = os.path.join('sig', sig, 'sig-info.yaml')
+            remote_owners = subprocess.getoutput('git show remotes/origin/master:{}'.format(remote_owners_file))
+            remote_maintainers = []
+            if not remote_owners.startswith('fatal'):
+                remote_maintainers = yaml.load(remote_owners, Loader=yaml.Loader)['maintainers']
+            else:
+                remote_sig_info = subprocess.getoutput(
+                    'git show remotes/origin/master: {}'.format(remote_sig_info_file))
+                remote_maintainers = [maintainer['gitee_id'] for maintainer in
+                                      yaml.load(remote_sig_info, Loader=yaml.Loader)['maintainers']]
+            for maintainer in remote_maintainers:
+                owners.append('@' + maintainer)
             sigs[sig] = " ".join(owners)
     return sigs
 
