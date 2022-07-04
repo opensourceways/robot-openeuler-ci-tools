@@ -422,12 +422,12 @@ def load_sig_owners(sig_name):
             return None
         subprocess.call('git checkout {}'.format(current_branch), shell=True)
         return owners
+    subprocess.call('git checkout {}'.format(current_branch), shell=True)
     try:
         with open(sig_info_file, 'r') as f:
             sig_info = yaml.load(f.read(), Loader=yaml.Loader)
         maintainers = sig_info['maintainers']
         owners = [('@' + maintainer['gitee_id']) for maintainer in maintainers]
-        subprocess.call('git checkout {}'.format(current_branch), shell=True)
         return owners
     except FileNotFoundError:
         if os.path.exists(owners_file):
