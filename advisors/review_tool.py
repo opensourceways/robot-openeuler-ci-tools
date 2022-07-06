@@ -553,7 +553,7 @@ def check_branch_add(info):
         if not (diff_file_name.endswith('.yaml') and
                 len(diff_file_name.split('/')) == 5 and
                 diff_file_name.split('/')[0] == 'sig' and
-                diff_file_name.split('/')[2] in ['openeuler', 'src-openeuler']):
+                diff_file_name.split('/')[2] == 'src-openeuler'):
             continue
         for diff_line in diff_file:
             if diff_line.startswith('+- name: '):
