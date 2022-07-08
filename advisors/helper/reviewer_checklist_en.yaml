@@ -100,7 +100,7 @@ src-openeuler:
   -
     name: PR-selftest
     condition: null
-    claim: %check content contained
+    claim: check content contained
     explain: It is preferred that an RPM SPEC file includes self-testing cases.
   -
     name: PR-doc
